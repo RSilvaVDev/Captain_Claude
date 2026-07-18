@@ -8,6 +8,38 @@ Invoke it with `/captain-claude`, by asking to "orchestrate" or "delegate to
 other models", or it's picked up automatically when working under this
 repo's directory.
 
+## Installation
+
+Clone the repo, then make the skill visible to Claude Code by symlinking
+(or copying) its `.claude/skills/captain-claude` folder into a skills
+directory Claude Code scans.
+
+**Global** — available in every project:
+
+```bash
+git clone https://github.com/RSilvaVDev/Captain_Claude.git
+ln -s "$(pwd)/Captain_Claude/.claude/skills/captain-claude" ~/.claude/skills/captain-claude
+```
+
+**Project-local** — available only in one repo:
+
+```bash
+git clone https://github.com/RSilvaVDev/Captain_Claude.git
+mkdir -p /path/to/your/project/.claude/skills
+cp -r Captain_Claude/.claude/skills/captain-claude /path/to/your/project/.claude/skills/
+```
+
+Start (or restart) a Claude Code session in that scope and it'll show up in
+the available-skills listing as `captain-claude`. Edit
+[`config.json`](.claude/skills/captain-claude/config.json) — either in the
+clone or, if you symlinked, directly in this repo — to change routing
+behavior; see [Configuration](#configuration) below.
+
+## License
+
+[PolyForm Noncommercial License 1.0.0](LICENSE) — free to use, modify, and
+redistribute for any noncommercial purpose.
+
 ## How it works
 
 For every subtask, the orchestrator asks:
