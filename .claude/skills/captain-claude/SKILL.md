@@ -34,6 +34,34 @@ who only lists `sonnet` and `opus` wants a two-way split, not four. Never
 delegate to a model that isn't in the list, even if it seems like the best
 conceptual fit for a subtask — route to the nearest available tier instead.
 
+## Single-model-first gate
+
+Before splitting a task into rubric-routed subtasks, ask one gate question
+first: could `orchestratorModel` alone — or a single mid-tier model in
+`availableModels` — competently do the *entire* task in one pass, including
+its hardest part?
+
+- If yes, do that instead of splitting. Every additional `Agent` call
+  carries fixed overhead (re-establishing context, re-reading files, writing
+  its own separate summary) that a single continuous pass skips entirely.
+  For small-to-medium tasks that overhead can exceed whatever routing the
+  easy parts to a cheaper model would have saved — a lower per-token rate on
+  part of the work does not guarantee a lower total bill once you're paying
+  per-call overhead multiple times over.
+- Only split when the task has a part that genuinely exceeds a cheaper
+  model's competence, forcing real use of a pricier tier — and even then,
+  check whether the remaining parts are substantial enough that delegating
+  them separately still nets savings after per-call overhead. A few
+  mechanical lines are rarely worth spinning up their own call.
+- If genuinely unsure whether the hard part exceeds a cheaper model, don't
+  split speculatively — default to one pass with the least expensive model
+  actually capable of the whole task, and only fall back to routing if that
+  pass fails or the task is large enough that per-call overhead is clearly
+  negligible next to the work itself.
+- This gate runs once, before the rubric, and decides *whether* to split at
+  all. The rubric below governs *which* model handles *which* subtask on the
+  occasions splitting turns out to be justified.
+
 ## Rubric
 
 Use this as general judgment guidance, not a rigid id-to-tier lookup table.
@@ -95,9 +123,22 @@ no announcement — only delegated work is surfaced this way.
 
 ## After results return
 
-Read each subagent's summary before trusting it, especially for high-stakes
-subtasks where being wrong is expensive — a summary describes what the agent
-intended, not necessarily what it verified.
+Read each subagent's summary before trusting it — a summary describes what
+the agent intended, not necessarily what it verified. Scale how far you go
+beyond the summary to the tier you delegated to:
+
+- **Mechanical/standard tiers** (the cheap/fast and general-purpose models) —
+  the summary is enough. Spot-check only if something in it looks off.
+- **The most capable delegate-able tier** (whichever model in
+  `availableModels` you reserve for ambiguous/high-stakes work) — actually
+  read the diff or output yourself before accepting it, not just the
+  summary. These are exactly the "costly to get wrong" subtasks the rubric
+  routed there for, so a claimed success isn't evidence of one.
+
+This costs extra tokens on the tasks that get it — full review roughly
+doubles the cost of that subtask, since you're re-reading what the subagent
+already produced — so don't apply it uniformly to every delegated call, only
+to the tier where being wrong is expensive enough to justify it.
 
 ## Using other skills
 
@@ -135,3 +176,25 @@ or a subagent should run it — check its compatibility class:
 3. If the class is **opaque-handoff**, tell the user before proceeding: name
    the skill and what part of it you can't route, then let them decide
    whether to continue.
+
+## Token-efficient communication
+
+Once routing (splitting into multiple calls) is actually justified by the
+gate above, also scan the installed-skills listing for a
+communication-compression skill (e.g. `caveman`) and apply it to cut
+per-call overhead further:
+
+- Use it for your own announcements and status updates to the user — the
+  "Announcing delegation" convention above needs the reason tied to a
+  rubric tier, not prose padding around it.
+- Instruct delegated subagents to keep their final summary/report under the
+  same convention. That summary is what you re-read after the call returns,
+  so unnecessary narrative padding there is pure overhead you pay twice —
+  once to generate it, once to read it back.
+- Never apply it to the technical content itself — code, diffs, test
+  output, and anything in the "read the diff yourself" review tier stay
+  exact and unabridged. Compression skills like `caveman` already draw this
+  line themselves: technical substance stays, only filler drops.
+- This lever reduces overhead *within* a call and is independent of which
+  model tier handled it — it doesn't change the routing decision, only how
+  much you pay in tokens to communicate the result of one.
