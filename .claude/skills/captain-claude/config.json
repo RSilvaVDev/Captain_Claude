@@ -1,0 +1,4 @@
+{
+  "orchestratorModel": "fable",
+  "availableModels": ["haiku", "sonnet", "opus", "fable"]
+}
